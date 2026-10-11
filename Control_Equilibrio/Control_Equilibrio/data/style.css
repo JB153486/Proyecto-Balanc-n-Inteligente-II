@@ -1,0 +1,56 @@
+:root{--fondo:#0d1217;--panel:#151c23;--linea:#26323c;--texto:#dce6ed;--suave:#7f909d;--acento:#3fd0c9;--ambar:#f2b84b;--rojo:#e5484d;
+--fuente:"Segoe UI",system-ui,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--fondo);color:var(--texto);font:15px/1.4 var(--fuente)}
+body{padding:14px;max-width:1280px;margin:auto}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;margin-bottom:14px}
+h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.5px}
+h2{margin:0 0 10px;font-size:16px;font-weight:600}
+h3{margin:0 0 4px;font-size:13px;font-weight:500;color:var(--suave)}
+h3 u{text-decoration:none;margin-left:10px;color:var(--texto)}
+h3 u::before{content:"";display:inline-block;width:14px;height:3px;background:var(--c);margin-right:5px;vertical-align:middle}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:3px 10px;border:1px solid var(--linea);border-radius:99px;font-size:13px;color:var(--suave)}
+.chip.ok{color:var(--acento);border-color:var(--acento)}
+.chip.alerta{color:var(--ambar);border-color:var(--ambar)}
+.chip.mal{color:var(--rojo);border-color:var(--rojo)}
+main{display:grid;grid-template-columns:minmax(270px,340px) 1fr;gap:14px}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--linea);border-radius:10px;padding:14px}
+.robot{position:relative;padding:8px}
+.robot svg{width:100%;max-height:260px;display:block}
+.suelo{stroke:var(--linea);stroke-width:2}
+.vertical{stroke:var(--linea);stroke-width:1;stroke-dasharray:4 4}
+.cuerpo{fill:#243543;stroke:var(--acento);stroke-width:2}
+.led{fill:var(--acento)}
+.rueda{fill:#0d1217;stroke:var(--texto);stroke-width:3}
+.radio{stroke:var(--suave);stroke-width:3}
+#robot{transition:transform .05s linear}
+.angulo{position:absolute;left:14px;top:10px;font-family:var(--mono)}
+.angulo span{font-size:34px;font-weight:600;color:var(--acento)}
+.angulo small{display:block;color:var(--suave);font-size:12px;margin-top:-4px}
+.pid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.pid label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--suave)}
+.pid em{font-style:normal;font-size:12px}
+.pid b{font-family:var(--mono);color:var(--ambar);font-weight:500}
+input[type=number]{width:100%;padding:7px 8px;background:var(--fondo);border:1px solid var(--linea);border-radius:6px;color:var(--texto);font:15px var(--mono)}
+button{padding:8px 12px;background:#1d2833;border:1px solid var(--linea);border-radius:6px;color:var(--texto);font:14px var(--fuente);cursor:pointer;width:100%;margin-top:8px}
+button:hover{border-color:var(--suave)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+.primario{background:var(--acento);color:#06201f;border-color:var(--acento);font-weight:600}
+.paro{background:var(--rojo);border-color:var(--rojo);color:#fff;font-weight:700;padding:12px}
+.fila{display:flex;gap:8px}
+.fila button{margin-top:8px}
+.nota{margin:8px 0 0;font-size:12px;color:var(--suave)}
+.metricas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.m{background:var(--panel);border:1px solid var(--linea);border-radius:10px;padding:10px 12px}
+.m span{display:block;font-size:12px;color:var(--suave)}
+.m b{font:600 24px var(--mono)}
+.m i{font-style:normal;font-size:12px;color:var(--suave);margin-left:4px}
+.barra{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.barra .fila{width:auto}.barra button{width:auto;margin:0}
+.graf{margin-top:10px}
+canvas{width:100%;height:150px;display:block;background:#0f161c;border-radius:6px}
+#aviso{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#1d2833;border:1px solid var(--acento);padding:9px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:5}
+#aviso.ver{opacity:1}#aviso.error{border-color:var(--rojo)}
+@media(max-width:860px){main{grid-template-columns:1fr}}
