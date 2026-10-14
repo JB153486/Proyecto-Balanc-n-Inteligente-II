@@ -26,7 +26,8 @@
 // Inicialmente usamos 0 grados.
 //
 // Posteriormente este valor se calibrará mecánicamente.
-float equilibrioSetpoint = 0.0;
+float equilibrioSetpoint = 0.30;
+float equilibrioOffset = 0.0;   // lo escribe el PI de velocidad (grados)
 
 
 // ------------------------------------------------------------
@@ -34,7 +35,7 @@ float equilibrioSetpoint = 0.0;
 // ------------------------------------------------------------
 
 // Determina cuánto responde el motor ante una inclinación.
-float equilibrioKp = 10.0;
+float equilibrioKp = 15.0;
 
 
 // ------------------------------------------------------------
@@ -53,7 +54,7 @@ float equilibrioKi = 0.0;
 // ------------------------------------------------------------
 
 // Ayuda a amortiguar el movimiento.
-float equilibrioKd = 0.3;
+float equilibrioKd = 1.36;
 
 
 // ============================================================
@@ -150,9 +151,7 @@ float equilibrioUpdate(
     // --------------------------------------------------------
 
     // Error = referencia - medición.
-    equilibrioError =
-        equilibrioSetpoint - anguloActual;
-
+    equilibrioError = (equilibrioSetpoint + equilibrioOffset) - anguloActual;
 
     // --------------------------------------------------------
     // INTEGRAL

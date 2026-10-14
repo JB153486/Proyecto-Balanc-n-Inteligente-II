@@ -49,7 +49,10 @@ bool habilitado = false;
 
 unsigned long armandoHasta = 0;   // 0 = sin cuenta regresiva
 
-
+// ---- PI DE VELOCIDAD (lazo externo) ----
+// (velKp, velKi, velIntegral, velDeseada y velActivo ahora están en comandos.h)
+const float RADIO_RUEDA = 0.035f;      // m
+const float OFFSET_MAX  = 0.8f;        // grados máximos que puede mover el setpoint
 // ============================================================
 // COMPENSACIÓN DE ZONA MUERTA
 // ============================================================
@@ -85,7 +88,8 @@ int compensarZonaMuerta(float u, int zm)
 void enviarRespuesta(uint32_t id, bool ok, const char *msg)
 {
     if (!colaResp || !telClientes) return;
-    Respuesta r = { id, (uint8_t)ok, "", equilibrioKp, equilibrioKi, equilibrioKd, equilibrioSetpoint };
+    Respuesta r = { id, (uint8_t)ok, "", equilibrioKp, equilibrioKi, equilibrioKd, equilibrioSetpoint,
+                velKp, velKi, velDeseada, (uint8_t)velActivo };
     strncpy(r.msg, msg, sizeof(r.msg) - 1);
     xQueueSend(colaResp, &r, 0);
 }
@@ -113,6 +117,16 @@ void procesarComandos()
             equilibrioKd = c.kd; equilibrioSetpoint = c.sp;
             enviarRespuesta(c.id, true, "");
         }
+
+        else if (c.tipo == CMD_VEL)                       // <-- NUEVA
+        {
+            velKp = c.vkp; velKi = c.vki;
+            if (c.vact && !velActivo) velIntegral = 0;
+            velActivo = c.vact;
+            velDeseada = (c.vact && habilitado) ? c.vref : 0;
+            enviarRespuesta(c.id, true, "");
+        }
+
         else if (!c.on)
         {
             habilitado = false;
@@ -166,6 +180,10 @@ void procesarSerial()
         case 'd': if (v >= 0 && v <= LIM_KD_MAX) equilibrioKd = v; break;
         case 'i': if (v >= 0 && v <= LIM_KI_MAX) equilibrioKi = v; break;
         case 't': if (fabsf(v) <= LIM_SP_MAX)    equilibrioSetpoint = v; break;
+        case 'v': if (v >= 0 && v <= LIM_VKP_MAX) velKp = v; break;            // v4
+        case 'w': if (v >= 0 && v <= LIM_VKI_MAX) velKi = v; break;            // w1
+        case 'r': if (fabsf(v) <= LIM_VREF_MAX && habilitado) velDeseada = v; break;   // r0.2
+        case 'y': velActivo = (v != 0); velIntegral = 0; break;                // y1 / y0
 
         case 'e':
             habilitado = (v != 0);
@@ -316,6 +334,7 @@ void setup()
 void loop()
 {
     bsLoops++;
+
     // --------------------------------------------------------
     // ACTUALIZAR IMU
     // --------------------------------------------------------
@@ -382,6 +401,26 @@ void loop()
         float angulo = imuGetAngleRobot();      // grados
         float velAng = imuGetGyroRateRobot();   // grados/s
 
+        // ---- PI DE VELOCIDAD ----
+        float vMedida = 0.5f * (getEncoderRadPerSecondFilteredLeft() +
+                                getEncoderRadPerSecondFilteredRight()) * RADIO_RUEDA;
+
+        if (velActivo && habilitado)
+        {
+            float eV = velDeseada - vMedida;
+            if (fabsf(angulo) < 3.0f) velIntegral += eV * dt;   // no acumula durante una caída
+            velIntegral = constrain(velIntegral, -OFFSET_MAX / max(velKi, 0.01f),
+                                                  OFFSET_MAX / max(velKi, 0.01f));
+            equilibrioOffset = constrain(velKp * eV + velKi * velIntegral,
+                                        -OFFSET_MAX, OFFSET_MAX);
+        }
+        else
+        {
+            velIntegral = 0.0f;
+            equilibrioOffset = 0.0f;
+            if (!habilitado) velDeseada = 0.0f;   // <-- NUEVA
+        }
+
 
         // ----------------------------------------------------
         // CONTROL DE EQUILIBRIO (PD)
@@ -433,13 +472,14 @@ void loop()
         {
             long resta = armandoHasta ? (long)(armandoHasta - millis()) : 0;
             MuestraTel tel = {
-                millis(), angulo, equilibrioSetpoint, equilibrioSetpoint - angulo,
+                millis(), angulo, equilibrioSetpoint, (equilibrioSetpoint + equilibrioOffset) - angulo,
                 velAng, u,
                 (int16_t)motoresGetLeftPWM(), (int16_t)motoresGetRightPWM(),
                 getEncoderRPMFilteredLeft(), getEncoderRPMFilteredRight(),
                 hzFiltrado,
                 (uint8_t)(habilitado ? 1 : (armandoHasta ? 2 : 0)),
-                (uint8_t)(resta > 0 ? (resta + 999) / 1000 : 0) };
+                (uint8_t)(resta > 0 ? (resta + 999) / 1000 : 0) ,
+                vMedida, velDeseada, equilibrioOffset, (uint8_t)velActivo };
             telemetriaPublicar(tel);
         }
 
@@ -454,8 +494,8 @@ void loop()
         {
             n = 0;
 
-            Serial.printf("Robot:%.1f,U:%.0f,En:%d\n",
-                angulo, u, habilitado);
+            Serial.printf("Robot:%.1f,U:%.0f,En:%d,V:%.2f,Off:%.2f\n",
+    angulo, u, habilitado, vMedida, equilibrioOffset);
         }
     }
 }

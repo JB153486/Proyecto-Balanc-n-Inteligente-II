@@ -1,11 +1,14 @@
 "use strict";
 const $ = id => document.getElementById(id);
-const DEFECTO = {kp: 10, ki: 0, kd: 0.3, sp: 0};          // valores del firmware
-const LIMITES = {kp: [0, 100], ki: [0, 50], kd: [0, 10], sp: [-20, 20]};
-const NOMBRES = {kp: "Kp", ki: "Ki", kd: "Kd", sp: "El setpoint"};
+const DEFECTO = {kp: 15, ki: 0, kd: 1.36, sp: 0.58, vkp: 2.5, vki: 0.5};   // valores del firmware
+const LIM_PID = {kp: [0, 100], ki: [0, 50], kd: [0, 10], sp: [-20, 20]};
+const LIM_PI  = {vkp: [0, 20], vki: [0, 10]};
+const LIM_REF = 0.5;                                        // m/s
+const LIMITES = {...LIM_PID, ...LIM_PI};
+const NOMBRES = {kp: "Kp", ki: "Ki", kd: "Kd", sp: "El setpoint", vkp: "Kp de velocidad", vki: "Ki de velocidad"};
 const ANGULO_CORTE = 30, DT = 0.05, VENTANA = 400, MAX_REG = 12000, ZM = [12, 11];
 
-let conf = {...DEFECTO}, motor = false, pausado = false, finPausa = 0;
+let conf = {...DEFECTO}, vel = {act: false, ref: 0}, motor = false, pausado = false, finPausa = 0;
 const reg = [];                                             // registro de muestras
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -26,6 +29,7 @@ function enviar(cmd) {
     let msg = {cmd: cmd.tipo, id};
     if (cmd.tipo === "params") msg = {...msg, ...cmd.valores};
     if (cmd.tipo === "motor") msg.on = !!cmd.on;
+    if (cmd.tipo === "vel") msg = {...msg, ...cmd.valores, vact: cmd.valores.vact ? 1 : 0};
     ws.send(JSON.stringify(msg));
   });
 }
@@ -36,16 +40,16 @@ function conectar() {
   ws = new WebSocket(`ws://${host}/ws`);
   ws.onopen = () => chip("chipRed", "WiFi: conectado", "ok");
   ws.onclose = () => {
-    chip("chipRed", "WiFi: reconectando", "mal"); enlace = false; tarjetasEstado();
+    chip("chipRed", "WiFi: reconectando", "mal"); enlace = false; tarjetasEstado(); mostrarPI();
     setTimeout(conectar, 1000);
   };
   ws.onmessage = e => {
     let j; try { j = JSON.parse(e.data); } catch { return; }
     if (j.tipo === "hola") {
       reg.length = 0; finPausa = 0;
-      conf = {kp: j.kp, ki: j.ki, kd: j.kd, sp: j.sp}; mostrarConf(); llenarForm(conf);
+      guardarConf(j); mostrarConf(); llenarForm(conf); mostrarPI();
     } else if (j.tipo === "ack") {
-      conf = {kp: j.kp, ki: j.ki, kd: j.kd, sp: j.sp}; mostrarConf();
+      guardarConf(j); mostrarConf(); mostrarPI();
       const p = pendientes.get(j.id); if (p) { pendientes.delete(j.id); p({ok: true}); }
     } else if (j.tipo === "err") {
       const p = pendientes.get(j.id);
@@ -54,14 +58,33 @@ function conectar() {
   };
 }
 
+function guardarConf(j) {
+  conf = {kp: j.kp, ki: j.ki, kd: j.kd, sp: j.sp, vkp: j.vkp, vki: j.vki};
+  vel = {act: !!j.vact, ref: j.vref};
+}
+
 function recibir(j) {
   ultimoDato = performance.now(); enlace = true;
   chip("chipFuente", "Datos del robot", "ok");
   motor = j.mo === 1; armSeg = j.mo === 2 ? (j.ar || 1) : 0;
-  const m = {t: j.t / 1000, ang: j.ang, sp: j.sp, err: j.err, om: j.om, u: j.u,
-             pl: j.pl, pr: j.pr, rl: j.rl, rr: j.rr, hz: j.hz};
+  vel = {act: !!j.va, ref: j.vr};
+  const m = {t: j.t / 1000, ang: j.ang, sp: j.sp + j.of, err: j.err, om: j.om, u: j.u,
+             pl: j.pl, pr: j.pr, rl: j.rl, rr: j.rr, hz: j.hz,
+             vm: j.vm, vr: j.vr, of: j.of};
   reg.push(m); if (reg.length > MAX_REG) { reg.shift(); if (pausado) finPausa--; }
   tarjetas(m); graficas();
+}
+
+function mostrarPI() {
+  $("refGrande").textContent = vel.ref.toFixed(2);
+  $("mVr").textContent = vel.ref.toFixed(2);
+  const c = $("chipPI");
+  if (!vel.act) { c.textContent = "PI velocidad: apagado"; c.className = "chip"; }
+  else if (!enlace) { c.textContent = `PI activo · última ref ${vel.ref.toFixed(2)} m/s (sin enlace)`; c.className = "chip alerta"; }
+  else { c.textContent = `PI activo · ref ${vel.ref.toFixed(2)} m/s`; c.className = "chip " + (vel.ref !== 0 ? "alerta" : "ok"); }
+  $("refAviso").textContent = !enlace
+    ? `Sin enlace: el robot conserva la última referencia conocida (${vel.ref.toFixed(2)} m/s). Puede estar desactualizada.`
+    : "";
 }
 
 function tarjetasEstado() {
@@ -86,6 +109,8 @@ function tarjetas(m) {
   $("mU").textContent = m.u.toFixed(0);
   $("mPl").textContent = m.pl;  $("mPr").textContent = m.pr;
   $("mRl").textContent = m.rl;  $("mRr").textContent = m.rr;
+  $("mVm").textContent = m.vm.toFixed(3);  $("mOf").textContent = m.of.toFixed(2);
+  mostrarPI();
   tarjetasEstado();
   $("chipHz").textContent = m.hz.toFixed(1) + " Hz";
 }
@@ -123,6 +148,8 @@ const GRAFICAS = [
   ["g3", [{k: "u", c: "#b49cff"}]],
   ["g4", [{k: "pl", c: "#5fa8ff"}, {k: "pr", c: "#ffa95f"}]],
   ["g5", [{k: "rl", c: "#5fa8ff"}, {k: "rr", c: "#ffa95f"}]],
+  ["g6", [{k: "vm", c: "#6ee07a"}, {k: "vr", c: "#f2b84b"}]],
+  ["g7", [{k: "of", c: "#b49cff"}]],
 ];
 function graficas() {
   const fin = pausado ? finPausa : reg.length;
@@ -133,10 +160,10 @@ function graficas() {
 /* ---------- Formulario y comandos ---------- */
 function mostrarConf() { for (const k in conf) $("c_" + k).textContent = conf[k]; }
 function llenarForm(v) { for (const k in LIMITES) $(k).value = v[k]; }
-function leerForm() {
+function leerForm(lim) {
   const v = {};
-  for (const k in LIMITES) {
-    const n = parseFloat($(k).value), [a, b] = LIMITES[k];
+  for (const k in lim) {
+    const n = parseFloat($(k).value), [a, b] = lim[k];
     if (!Number.isFinite(n) || n < a || n > b) {
       aviso(`${NOMBRES[k]} debe estar entre ${a} y ${b}`, true); $(k).focus(); return null;
     }
@@ -147,6 +174,12 @@ function leerForm() {
 async function aplicar(v) {
   const r = await enviar({tipo: "params", valores: v});
   if (r.ok) { mostrarConf(); aviso("Parámetros confirmados por el robot"); }
+  else aviso(r.error || "El robot rechazó el comando", true);
+}
+// Envía el PI completo; lo que no se cambia se manda con el último valor confirmado.
+async function aplicarPI(p, msg) {
+  const r = await enviar({tipo: "vel", valores: {vkp: conf.vkp, vki: conf.vki, vref: vel.ref, vact: vel.act, ...p}});
+  if (r.ok) aviso(msg || "PI confirmado por el robot");
   else aviso(r.error || "El robot rechazó el comando", true);
 }
 async function motores(on) {
@@ -160,35 +193,51 @@ function descargar(nombre, texto, tipo) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-$("bAplicar").onclick = () => { const v = leerForm(); if (v) aplicar(v); };
+$("bAplicar").onclick = () => { const v = leerForm(LIM_PID); if (v) aplicar(v); };
+$("bAplicarPI").onclick = () => { const v = leerForm(LIM_PI); if (v) aplicarPI(v, "Ganancias del PI confirmadas"); };
+$("bPIon").onclick = () => aplicarPI({vact: true}, "PI activado (referencia solo con motores habilitados)");
+$("bPIoff").onclick = () => aplicarPI({vact: false}, "PI desactivado");
+$("bRef").onclick = () => {
+  const n = parseFloat($("vref").value);
+  if (!Number.isFinite(n) || Math.abs(n) > LIM_REF) { aviso(`La referencia debe estar entre -${LIM_REF} y ${LIM_REF} m/s`, true); $("vref").focus(); return; }
+  if (!vel.act) { aviso("Activa el PI antes de enviar una referencia", true); return; }
+  if (!motor) { aviso("Habilita los motores antes de enviar una referencia", true); return; }
+  aplicarPI({vref: Math.round(n * 100) / 100}, "Referencia confirmada por el robot");
+};
+$("bRef0").onclick = () => { $("vref").value = 0; aplicarPI({vref: 0}, "Referencia en 0"); };
 $("bHab").onclick = () => motores(true);
 $("bDes").onclick = () => motores(false);
 $("bParo").onclick = async () => { const r = await enviar({tipo: "paro"}); aviso(r.ok ? "Parada de emergencia: motores deshabilitados" : r.error, true); };
-$("bExpCfg").onclick = () => descargar("balancin-pid.json", JSON.stringify(conf, null, 2), "application/json");
+$("bExpCfg").onclick = () => descargar("balancin-config.json", JSON.stringify(conf, null, 2), "application/json");
 $("bImpCfg").onclick = () => $("fileCfg").click();
 $("fileCfg").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
     const d = JSON.parse(await f.text());
-    for (const k in LIMITES) if (!(d[k] >= LIMITES[k][0] && d[k] <= LIMITES[k][1])) throw new Error(k);
+    for (const k in LIM_PID) if (!(d[k] >= LIM_PID[k][0] && d[k] <= LIM_PID[k][1])) throw new Error(k);
+    for (const k in LIM_PI) if (k in d && !(d[k] >= LIM_PI[k][0] && d[k] <= LIM_PI[k][1])) throw new Error(k);
     llenarForm(d); aviso("Configuración cargada. Pulsa «Aplicar al robot» para enviarla.");
   } catch { aviso("El archivo no es una configuración válida", true); }
 };
-$("bRest").onclick = () => { llenarForm(DEFECTO); aplicar({...DEFECTO}); };
+$("bRest").onclick = async () => {
+  llenarForm(DEFECTO);
+  const {vkp, vki, ...pid} = DEFECTO;
+  await aplicar(pid); await aplicarPI({vkp, vki}, "Valores por defecto restaurados");
+};
 $("bPausa").onclick = () => {
   pausado = !pausado; finPausa = reg.length;
   $("bPausa").textContent = pausado ? "Reanudar" : "Pausar";
 };
 $("bLimpiar").onclick = () => { reg.length = 0; finPausa = 0; graficas(); };
 $("bCsv").onclick = () => {
-  const c = ["t_s", "angulo_deg", "setpoint_deg", "error_deg", "vel_ang_dps", "salida_pid", "pwm_izq", "pwm_der", "rpm_izq", "rpm_der"];
-  const k = ["t", "ang", "sp", "err", "om", "u", "pl", "pr", "rl", "rr"];
+  const c = ["t_s", "angulo_deg", "setpoint_efectivo_deg", "error_deg", "vel_ang_dps", "salida_pid", "pwm_izq", "pwm_der", "rpm_izq", "rpm_der", "vel_ms", "ref_ms", "offset_deg"];
+  const k = ["t", "ang", "sp", "err", "om", "u", "pl", "pr", "rl", "rr", "vm", "vr", "of"];
   const filas = reg.map(m => k.map(x => +m[x].toFixed(3)).join(","));
   descargar("balancin-registro.csv", [c.join(","), ...filas].join("\n"), "text/csv");
 };
 
 /* ---------- Arranque ---------- */
-llenarForm(conf); mostrarConf();
+llenarForm(conf); mostrarConf(); mostrarPI();
 conectar();
 setInterval(() => {
   if (ws && ws.readyState === 1 && performance.now() - ultimoDato > 1500) { chip("chipRed", "WiFi: sin datos", "alerta"); enlace = false; tarjetasEstado(); }

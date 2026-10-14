@@ -1,7 +1,7 @@
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
 
-// Etapa 4: WebSocket de solo lectura. Se ignora todo mensaje entrante.
+// WebSocket: telemetria + comandos validados (params, vel, motor, paro).
 
 void wsError(AsyncWebSocketClient *c, uint32_t id, const char *msg)
 {
@@ -44,6 +44,21 @@ void wsRecibir(AsyncWebSocketClient *c, void *arg, uint8_t *data, size_t len)
         return;
     }
 
+    if (strstr(m, "\"cmd\":\"vel\""))
+    {
+        Comando k = { CMD_VEL, id, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        float act;
+        if (!jsonNum(m, "vkp", k.vkp) || !jsonNum(m, "vki", k.vki) ||
+            !jsonNum(m, "vref", k.vref) || !jsonNum(m, "vact", act))
+        { wsError(c, id, "Faltan parametros"); return; }
+
+        const char *e = validarVel(k.vkp, k.vki, k.vref, act);
+        if (e) { wsError(c, id, e); return; }
+        k.vact = (uint8_t)act;
+        if (xQueueSend(colaCmd, &k, 0) != pdTRUE) wsError(c, id, "Robot ocupado");
+        return;
+    }
+
     if (strstr(m, "\"cmd\":\"motor\""))
     {
         Comando k = { CMD_MOTOR, id, 0, 0, 0, 0, 0 };
@@ -62,10 +77,12 @@ void wsEvento(AsyncWebSocket *s, AsyncWebSocketClient *c, AwsEventType tipo,
 {
     if (tipo == WS_EVT_CONNECT)
     {
-        char b[160];
+        char b[256];
         snprintf(b, sizeof(b),
-            "{\"tipo\":\"hola\",\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"sp\":%.2f}",
-            equilibrioKp, equilibrioKi, equilibrioKd, equilibrioSetpoint);
+            "{\"tipo\":\"hola\",\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"sp\":%.2f,"
+            "\"vkp\":%.2f,\"vki\":%.2f,\"vref\":%.2f,\"vact\":%d}",
+            equilibrioKp, equilibrioKi, equilibrioKd, equilibrioSetpoint,
+            velKp, velKi, velDeseada, velActivo ? 1 : 0);
         c->text(b);
     }
     else if (tipo == WS_EVT_DATA)
@@ -78,7 +95,7 @@ void tareaTelemetria(void *)
 {
     MuestraTel m;
     Respuesta r;
-    char b[240];
+    char b[320];
     uint8_t ciclo = 0;
 
     for (;;)
@@ -92,8 +109,9 @@ void tareaTelemetria(void *)
         {
             int k = r.ok
                 ? snprintf(b, sizeof(b),
-                    "{\"tipo\":\"ack\",\"id\":%lu,\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"sp\":%.2f}",
-                    (unsigned long)r.id, r.kp, r.ki, r.kd, r.sp)
+                    "{\"tipo\":\"ack\",\"id\":%lu,\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"sp\":%.2f,"
+                    "\"vkp\":%.2f,\"vki\":%.2f,\"vref\":%.2f,\"vact\":%d}",
+                    (unsigned long)r.id, r.kp, r.ki, r.kd, r.sp, r.vkp, r.vki, r.vref, r.vact)
                 : snprintf(b, sizeof(b),
                     "{\"tipo\":\"err\",\"id\":%lu,\"msg\":\"%s\"}", (unsigned long)r.id, r.msg);
             if (ws.availableForWriteAll()) ws.textAll(b, k);
@@ -104,9 +122,11 @@ void tareaTelemetria(void *)
           int n = snprintf(b, sizeof(b),
                 "{\"tipo\":\"tel\",\"t\":%lu,\"ang\":%.2f,\"sp\":%.2f,\"err\":%.2f,"
                 "\"om\":%.1f,\"u\":%.1f,\"pl\":%d,\"pr\":%d,\"rl\":%.0f,\"rr\":%.0f,"
-                "\"hz\":%.1f,\"mo\":%d,\"ar\":%d}",
+                "\"hz\":%.1f,\"mo\":%d,\"ar\":%d,"
+                "\"vm\":%.3f,\"vr\":%.2f,\"of\":%.2f,\"va\":%d}",
                 (unsigned long)m.t_ms, m.ang, m.sp, m.err, m.om, m.u,
-                m.pl, m.pr, m.rl, m.rr, m.hz, m.motor, m.arm);
+                m.pl, m.pr, m.rl, m.rr, m.hz, m.motor, m.arm,
+                m.vm, m.vr, m.off, m.va);
             ws.textAll(b, n);
         }
     }
@@ -115,7 +135,7 @@ void tareaTelemetria(void *)
 void wsBegin()
 {
     ws.onEvent(wsEvento);
-    xTaskCreatePinnedToCore(tareaTelemetria, "tel", 4096, nullptr, 1, nullptr, 0);
+    xTaskCreatePinnedToCore(tareaTelemetria, "tel", 6144, nullptr, 1, nullptr, 0);
 }
 
 #endif

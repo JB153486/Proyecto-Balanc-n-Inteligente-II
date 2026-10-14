@@ -99,6 +99,7 @@ unsigned long previousTime = 0;
 const float ALPHA = 0.98;
 
 
+
 // ============================================================
 // INICIALIZAR IMU
 // ============================================================
@@ -122,7 +123,7 @@ bool imuBegin()
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
 
   // Filtro interno del MPU6050
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  mpu.setFilterBandwidth(MPU6050_BAND_260_HZ);
 
   // Inicializamos el tiempo
   previousTime = micros();

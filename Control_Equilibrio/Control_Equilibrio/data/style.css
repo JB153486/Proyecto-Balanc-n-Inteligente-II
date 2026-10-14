@@ -41,6 +41,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acento);outline
 .paro{background:var(--rojo);border-color:var(--rojo);color:#fff;font-weight:700;padding:12px}
 .fila{display:flex;gap:8px}
 .fila button{margin-top:8px}
+.refgrande{background:var(--fondo);border:1px solid var(--ambar);border-radius:8px;padding:8px 12px;margin-bottom:8px}
+.refgrande span{display:block;font-size:12px;color:var(--suave)}
+.refgrande b{font:600 30px var(--mono);color:var(--ambar)}
+.refgrande small{margin-left:6px;color:var(--suave)}
+.ref{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--suave);margin-top:10px}
 .nota{margin:8px 0 0;font-size:12px;color:var(--suave)}
 .metricas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .m{background:var(--panel);border:1px solid var(--linea);border-radius:10px;padding:10px 12px}

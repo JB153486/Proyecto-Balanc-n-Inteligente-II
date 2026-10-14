@@ -90,7 +90,7 @@ const uint8_t PIN_ENCODER_R_B = 47;
 // NO cambiar esta constante arbitrariamente.
 // ============================================================
 
-const float ENCODER_COUNTS_PER_OUTPUT_REV = 44.0f;
+const float ENCODER_COUNTS_PER_OUTPUT_REV = 3300.0f;
 
 
 // ============================================================

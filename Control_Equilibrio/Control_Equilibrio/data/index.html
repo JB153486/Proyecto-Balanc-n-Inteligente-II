@@ -13,6 +13,7 @@
     <span class="chip" id="chipRed">WiFi: sin enlace</span>
     <span class="chip alerta" id="chipFuente">Esperando datos</span>
     <span class="chip" id="chipMotor">Motores deshabilitados</span>
+    <span class="chip" id="chipPI">PI velocidad: apagado</span>
     <span class="chip" id="chipHz">0 Hz</span>
   </div>
 </header>
@@ -51,6 +52,29 @@
     </section>
 
     <section class="panel">
+      <h2>Velocidad (PI)</h2>
+      <div class="refgrande"><span>Referencia activa en el robot</span><b id="refGrande">0.00</b><small>m/s</small></div>
+      <div id="refAviso" class="nota"></div>
+      <div class="pid">
+        <label>Kp vel. <input id="vkp" type="number" step="0.1"><em>activo: <b id="c_vkp"></b></em></label>
+        <label>Ki vel. <input id="vki" type="number" step="0.1"><em>activo: <b id="c_vki"></b></em></label>
+      </div>
+      <button id="bAplicarPI">Aplicar ganancias PI</button>
+      <div class="fila">
+        <button id="bPIon">Activar PI</button>
+        <button id="bPIoff">Desactivar PI</button>
+      </div>
+      <label class="ref">Referencia (m/s, ±0.5)
+        <input id="vref" type="number" step="0.05" value="0">
+      </label>
+      <div class="fila">
+        <button id="bRef" class="primario">Enviar referencia</button>
+        <button id="bRef0">Detener (0)</button>
+      </div>
+      <p class="nota">Si se pierde el enlace WiFi, el robot conserva la última referencia (no hay tiempo de expiración). Al deshabilitar motores la referencia vuelve a 0.</p>
+    </section>
+
+    <section class="panel">
       <h2>Configuración</h2>
       <div class="fila">
         <button id="bExpCfg">Exportar</button>
@@ -72,6 +96,9 @@
       <div class="m"><span>PWM derecho</span><b id="mPr">0</b><i>/255</i></div>
       <div class="m"><span>Rueda izquierda</span><b id="mRl">0</b><i>RPM</i></div>
       <div class="m"><span>Rueda derecha</span><b id="mRr">0</b><i>RPM</i></div>
+      <div class="m"><span>Velocidad medida</span><b id="mVm">0.000</b><i>m/s</i></div>
+      <div class="m"><span>Referencia</span><b id="mVr">0.00</b><i>m/s</i></div>
+      <div class="m"><span>Offset del PI</span><b id="mOf">0.00</b><i>°</i></div>
     </section>
 
     <section class="panel">
@@ -83,11 +110,13 @@
           <button id="bCsv">Exportar CSV</button>
         </div>
       </div>
-      <div class="graf"><h3>Ángulo y setpoint (°) <u style="--c:#3fd0c9">ángulo</u> <u style="--c:#f2b84b">setpoint</u></h3><canvas id="g1"></canvas></div>
+      <div class="graf"><h3>Ángulo y setpoint efectivo (°) <u style="--c:#3fd0c9">ángulo</u> <u style="--c:#f2b84b">setpoint + offset</u></h3><canvas id="g1"></canvas></div>
       <div class="graf"><h3>Error angular (°)</h3><canvas id="g2"></canvas></div>
       <div class="graf"><h3>Salida del PID</h3><canvas id="g3"></canvas></div>
       <div class="graf"><h3>PWM de los motores <u style="--c:#5fa8ff">izquierdo</u> <u style="--c:#ffa95f">derecho</u></h3><canvas id="g4"></canvas></div>
       <div class="graf"><h3>Velocidad de las ruedas (RPM) <u style="--c:#5fa8ff">izquierda</u> <u style="--c:#ffa95f">derecha</u></h3><canvas id="g5"></canvas></div>
+      <div class="graf"><h3>Velocidad del robot (m/s) <u style="--c:#6ee07a">medida</u> <u style="--c:#f2b84b">referencia</u></h3><canvas id="g6"></canvas></div>
+      <div class="graf"><h3>Offset del lazo de velocidad (°)</h3><canvas id="g7"></canvas></div>
     </section>
   </div>
 </main>

@@ -12,6 +12,8 @@ struct MuestraTel {
     float rl, rr, hz;
     uint8_t motor;
     uint8_t arm;      // segundos que faltan de la cuenta regresiva
+    float vm, vr, off;   // velocidad medida, referencia (m/s), offset (grados)
+    uint8_t va;          // PI de velocidad activo
 };
 
 QueueHandle_t colaTel = nullptr;
